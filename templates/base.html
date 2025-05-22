@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Minha Perua Escolar - {% endblock %}</title>
+    <style>
+        /* Estilos Globais e Reset Básico */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            background-color: #f8f8f8;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        a {
+            color: #007bff;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        a:hover {
+            color: #0056b3;
+        }
+
+        /* Estilos do Cabeçalho (Header com Banner de Fundo) */
+        header {
+            height: 180px; /* Aumentei um pouco a altura para acomodar melhor o nome central */
+            background-image: url('/static/images/banner.jpg');
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column; /* Para empilhar o nome do app e o contêiner do título/subtítulo */
+            align-items: center; /* Centraliza o nome do app e o contêiner horizontalmente */
+            justify-content: center; /* Centraliza verticalmente o conteúdo principal */
+            position: relative; /* Para posicionar elementos filhos com absolute */
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            background-color: #e0f2f7;
+        }
+
+        /* Nome do Sistema (Centralizado sobre o Banner) */
+        .system-name {
+            color: #ffffff;
+            font-size: 3.2em; /* Tamanho grande para o nome do app */
+            font-weight: bold;
+            text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.9); /* Sombra bem forte para o texto */
+            background-color: rgba(0, 0, 0, 0.6); /* Fundo semi-transparente para legibilidade */
+            padding: 15px 30px;
+            border-radius: 10px;
+            z-index: 20; /* Garante que fique acima de tudo no header */
+            margin-bottom: 10px; /* Espaço abaixo do nome do app */
+            text-align: center; /* Centraliza o texto dentro do próprio bloco */
+            white-space: nowrap; /* Evita que o texto quebre */
+        }
+
+        /* Contêiner para o Título da Página (lateral) */
+        .page-title-container {
+            position: absolute; /* Posição absoluta para ficar no canto */
+            top: 20px; /* Distância do topo */
+            right: 20px; /* Distância da direita */
+            z-index: 15; /* Abaixo do nome do sistema, mas acima da imagem */
+            display: flex;
+            align-items: center;
+            /* background-color: rgba(0, 0, 0, 0.2); */ /* Opcional: um fundo muito sutil para o container */
+            padding: 5px 15px; /* Padding para o contêiner */
+            border-radius: 8px;
+            max-width: 300px; /* Limita a largura para não invadir muito o centro */
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.3); /* Uma sombra leve para dar destaque */
+        }
+
+        /* Título da Página (lateral) */
+        h1.page-title {
+            color: #ffffff;
+            font-size: 1.6em; /* Tamanho menor para o título da página */
+            font-weight: normal; /* Menos negrito que o nome do app */
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8); /* Sombra para o texto */
+            margin: 0; /* Remove margem padrão do h1 */
+            white-space: nowrap; /* Evita que o texto quebre */
+            overflow: hidden; /* Esconde o texto que excede a largura */
+            text-overflow: ellipsis; /* Adiciona reticências se o texto for muito longo */
+        }
+
+
+        /* Navegação */
+        nav {
+            background-color: #343a40;
+            padding: 10px 0;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        nav ul li {
+            margin: 0 15px;
+        }
+
+        nav a {
+            color: #ffffff;
+            font-weight: bold;
+            padding: 5px 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        nav a:hover {
+            background-color: #007bff;
+            color: #ffffff;
+        }
+
+        /* Estilos do Container Principal */
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            margin: 30px auto;
+            max-width: 1000px;
+        }
+
+        /* Botões e Inputs */
+        button,
+        input[type="submit"],
+        .button {
+            background-color: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            display: inline-block;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        button:hover,
+        input[type="submit"]:hover,
+        .button:hover {
+            background-color: #218838;
+            transform: translateY(-2px);
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="number"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            box-sizing: border-box;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            font-size: 1em;
+        }
+
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="number"]:focus,
+        input[type="password"]:focus,
+        select:focus,
+        textarea:focus {
+            border-color: #80bdff;
+            outline: 0;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        /* Estilos de Tabela */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 25px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th,
+        td {
+            border: 1px solid #dee2e6;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #e9ecef;
+            color: #495057;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        tr:hover {
+            background-color: #e2f0fb;
+        }
+
+        .actions a,
+        .actions button {
+            padding: 6px 12px;
+            font-size: 0.85em;
+            margin-right: 5px;
+        }
+
+        /* Estilos de mensagens */
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+
+        /* Rodapé */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #777;
+            font-size: 0.9em;
+            background-color: #ffffff;
+            border-top: 1px solid #eee;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Estilos para login/logout (se aplicável) */
+        .user-info {
+            text-align: right;
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        /* Responsividade para telas menores */
+        @media (max-width: 768px) {
+            header {
+                height: 180px;
+                /* No mobile, o título da página vai para baixo do nome do app */
+                flex-direction: column;
+                justify-content: center;
+                padding: 15px;
+            }
+
+            .system-name {
+                font-size: 2em;
+                margin-bottom: 15px; /* Mais espaço para o título abaixo */
+                padding: 10px 20px;
+            }
+
+            .page-title-container {
+                position: static; /* Volta para o fluxo normal */
+                width: auto; /* Deixa a largura automática */
+                max-width: 100%;
+                text-align: center; /* Centraliza o texto */
+                margin: 0; /* Remove margens absolutas */
+                background-color: rgba(0, 0, 0, 0.4); /* Adiciona um fundo mais visível no mobile */
+                box-shadow: none; /* Remove a sombra extra para mobile */
+            }
+
+            h1.page-title {
+                font-size: 1.4em;
+                padding: 5px 10px;
+                white-space: normal; /* Permite quebrar linha em telas menores */
+                text-overflow: clip; /* Remove reticências se o texto quebrar */
+            }
+
+            nav ul {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            nav ul li {
+                margin: 5px 0;
+            }
+
+            .container {
+                margin: 20px;
+                padding: 20px;
+            }
+
+            th, td {
+                padding: 8px 10px;
+                font-size: 0.9em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="system-name">Minha Perua Escolar</div>
+
+        <div class="page-title-container">
+            <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+        </div>
+    </header>
+
+    <nav>
+        <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/adicionar">Adicionar Cliente</a></li>
+            {% if current_user %}
+                <li><a href="#" onclick="document.getElementById('logout-form').submit();">Sair ({{ current_user.username }})</a></li>
+                <form id="logout-form" action="/logout" method="post" style="display: none;"></form>
+            {% else %}
+                <li><a href="/login">Login</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Minha Perua Escolar. Todos os direitos reservados.</p>
+    </footer>
+</body>
+
+</html>

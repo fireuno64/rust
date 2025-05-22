@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Cliente{% endblock %}
+{% block page_title %}Editar Cliente{% endblock %}
+
+{% block content %}
+<h2>Editar Cliente</h2>
+<form action="/editar/{{ cliente.id }}" method="post">
+    <div class="form-group">
+        <label for="nome_cliente">Nome do Cliente:</label>
+        <input type="text" id="nome_cliente" name="nome_cliente" value="{{ cliente.nome_cliente }}" required />
+    </div>
+    <div class="form-group">
+        <label for="telefone_cliente">Telefone Cliente:</label>
+        <input type="text" id="telefone_cliente" name="telefone_cliente" value="{{ cliente.telefone_cliente }}" required />
+    </div>
+    <div class="form-group">
+        <label for="nome_crianca">Nome da Criança:</label>
+        <input type="text" id="nome_crianca" name="nome_crianca" value="{{ cliente.nome_crianca }}" required />
+    </div>
+    <div class="form-group">
+        <label for="endereco_cliente">Endereço do Cliente:</label>
+        <input type="text" id="endereco_cliente" name="endereco_cliente" value="{{ cliente.endereco_cliente }}" required />
+    </div>
+    <div class="form-group">
+        <label for="valor_mensalidade">Valor da Mensalidade:</label>
+        <input type="number" step="0.01" id="valor_mensalidade" name="valor_mensalidade" value="{{ cliente.valor_mensalidade }}"
+            required />
+    </div>
+    <div class="form-group">
+        <label for="escola_destino">Escola Destino:</label>
+        <input type="text" id="escola_destino" name="escola_destino" value="{{ cliente.escola_destino }}" required />
+    </div>
+    <div class="form-group">
+        <label for="endereco_escola">Endereço da Escola:</label>
+        <input type="text" id="endereco_escola" name="endereco_escola" value="{{ cliente.endereco_escola }}" required />
+    </div>
+    <div class="form-group">
+        <label for="motorista_perua">Motorista da Perua:</label>
+        <input type="text" id="motorista_perua" name="motorista_perua" value="{{ cliente.motorista_perua }}" required />
+    </div>
+    <button type="submit">Salvar</button>
+</form>
+<a href="/">Voltar</a>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de Clientes{% endblock %}
+{% block page_title %}Lista de Clientes{% endblock %}
+
+{% block content %}
+<a href="/adicionar" class="button">Adicionar Cliente</a>
+{% if has_clientes %}
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nome do Cliente</th>
+            <th>Nome da Criança</th>
+            <th>Endereço do Cliente</th>
+            <th>Telefone Cliente</th>
+            <th>Valor da Mensalidade</th>
+            <th>Escola Destino</th>
+            <th>Endereço da Escola</th>
+            <th>Motorista da Perua</th>
+            <th>Ações</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for cliente in clientes %}
+        <tr>
+            <td>{{ cliente.id }}</td>
+            <td>{{ cliente.nome_cliente }}</td>
+            <td>{{ cliente.nome_crianca }}</td>
+            <td>{{ cliente.endereco_cliente }}</td>
+            <td>
+                {% if cliente.telefone_cliente %}
+                {{ cliente.telefone_cliente }}
+                {% else %}
+                -
+                {% endif %}
+            </td>
+            <td>
+                {# Comentando a linha com o filtro format_currency para teste #}
+                {{ cliente.valor_mensalidade }}
+                {# {{ cliente.valor_mensalidade | format_currency }} #}
+            </td>
+            <td>{{ cliente.escola_destino }}</td>
+            <td>{{ cliente.endereco_escola }}</td>
+            <td>{{ cliente.motorista_perua }}</td>
+            <td class="actions">
+                <a href="/editar/{{ cliente.id }}" style="background-color: #007bff; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; margin-right: 5px;">Editar</a>
+                <form action="/remover/{{ cliente.id }}" method="post" style="display:inline;">
+                    <button type="submit" onclick="return confirm('Tem certeza que deseja remover este cliente?');" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 5px; border: none; cursor: pointer;">Remover</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>Nenhum cliente cadastrado.</p>
+{% endif %}
+{% endblock %}

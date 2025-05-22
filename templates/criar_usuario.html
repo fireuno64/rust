@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Criar Usuário{% endblock %}
+{% block page_title %}Criar Novo Usuário{% endblock %}
+
+{% block content %}
+<h2>Criar Novo Usuário</h2>
+<form method="post" action="/admin/criar-usuario">
+    <div class="form-group">
+        <label for="username">Usuário:</label>
+        <input type="text" id="username" name="username" required>
+    </div>
+    <div class="form-group">
+        <label for="password">Senha:</label>
+        <input type="password" id="password" name="password" required>
+    </div>
+    <div class="form-group">
+        <label for="is_admin">Administrador:</label>
+        <input type="checkbox" id="is_admin" name="is_admin">
+    </div>
+    <button type="submit" class="button">Criar Usuário</button>
+</form>
+{% endblock %}
