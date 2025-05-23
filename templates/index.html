@@ -4,9 +4,24 @@
 {% block page_title %}Lista de Clientes{% endblock %}
 
 {% block content %}
-{% if current_user.is_admin %} {# Botão Adicionar Cliente visível apenas para admin #}
-<a href="/admin/adicionar" class="button">Adicionar Cliente</a>
-{% endif %}
+<div class="top-actions">
+    {% if current_user.is_admin %}
+    <a href="/admin/adicionar" class="button">Adicionar Cliente</a>
+    {% endif %}
+
+    <div class="search-form">
+        <form action="/" method="get" class="search-form-flex"> {# Adicionada classe 'search-form-flex' para flexbox #}
+            <div class="search-input-wrapper"> {# Novo wrapper para input e ícone #}
+                <input type="text" id="search_query" name="search" placeholder="Pesquisar..." value="{{ search_query | default(value='') }}" />
+                <button type="submit" class="search-button-icon" title="Pesquisar"></button> {# Botão apenas com ícone #}
+            </div>
+            {% if search_query %}
+                <a href="/" class="button clear-search-button">Limpar Pesquisa</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
 {% if has_clientes %}
 <table>
     <thead>
@@ -38,22 +53,18 @@
                 {% endif %}
             </td>
             <td>
-                {# Comentando a linha com o filtro format_currency para teste #}
-                {{ cliente.valor_mensalidade }}
-                {# {{ cliente.valor_mensalidade | format_currency }} #}
+                {{ cliente.valor_mensalidade | format_currency }} {# Adicionei o filtro de volta, se for usá-lo #}
             </td>
             <td>{{ cliente.escola_destino }}</td>
             <td>{{ cliente.endereco_escola }}</td>
             <td>{{ cliente.motorista_perua }}</td>
             <td class="actions">
-                {# Ações de Edição/Remoção visíveis apenas para administradores #}
                 {% if current_user.is_admin %}
                     <a href="/admin/editar/{{ cliente.id }}" style="background-color: #007bff; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; margin-right: 5px;">Editar</a>
                     <form action="/admin/remover/{{ cliente.id }}" method="post" style="display:inline;">
                         <button type="submit" onclick="return confirm('Tem certeza que deseja remover este cliente?');" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 5px; border: none; cursor: pointer;">Remover</button>
                     </form>
                 {% else %}
-                    {# Opcional: exibir algo para usuários não-admin, como "Sem permissão" #}
                     <span>-</span>
                 {% endif %}
             </td>
@@ -62,6 +73,10 @@
     </tbody>
 </table>
 {% else %}
-<p>Nenhum cliente cadastrado ainda.</p>
+    {% if search_query %}
+    <p>Nenhum cliente encontrado para a pesquisa "{{ search_query }}".</p>
+    {% else %}
+    <p>Nenhum cliente cadastrado ainda.</p>
+    {% endif %}
 {% endif %}
 {% endblock %}

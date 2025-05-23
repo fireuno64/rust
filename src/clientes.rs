@@ -62,24 +62,55 @@ pub fn remover_cliente(pool: &Pool, id: u32) -> Result<(), MySqlError> {
     Ok(())
 }
 
-pub fn listar_clientes(pool: &Pool) -> Result<Vec<Cliente>, MySqlError> {
+// CORREÇÃO: Agora aceita um Option<String> para o termo de pesquisa e busca em múltiplos campos (case-insensitive)
+pub fn listar_clientes(pool: &Pool, search_term: Option<String>) -> Result<Vec<Cliente>, MySqlError> {
     let mut conn = pool.get_conn()?;
-    let clientes = conn.query_map(
-        "SELECT id, nome_cliente, telefone_cliente, nome_crianca, endereco_cliente, valor_mensalidade, escola_destino, endereco_escola, motorista_perua FROM clientes",
-        |(id, nome_cliente, telefone_cliente, nome_crianca, endereco_cliente, valor_mensalidade, escola_destino, endereco_escola, motorista_perua): (u32, String, Option<String>, String, String, Decimal, String, String, String)| {
-            Cliente {
-                id,
-                nome_cliente,
-                telefone_cliente,
-                nome_crianca,
-                endereco_cliente,
-                valor_mensalidade,
-                escola_destino,
-                endereco_escola,
-                motorista_perua,
-            }
-        },
-    )?;
+    
+    let clientes = if let Some(term) = search_term {
+        let search_pattern = format!("%{}%", term); // Adiciona '%' para busca parcial
+        
+        // Usa exec_map com parâmetros nomeados para uma query mais segura e flexível
+        conn.exec_map(
+            "SELECT id, nome_cliente, telefone_cliente, nome_crianca, endereco_cliente, valor_mensalidade, escola_destino, endereco_escola, motorista_perua 
+             FROM clientes 
+             WHERE LOWER(nome_cliente) LIKE LOWER(:search_pattern) 
+                OR LOWER(nome_crianca) LIKE LOWER(:search_pattern)
+                OR LOWER(motorista_perua) LIKE LOWER(:search_pattern)
+             ORDER BY nome_cliente ASC",
+            params! { "search_pattern" => search_pattern },
+            |(id, nome_cliente, telefone_cliente, nome_crianca, endereco_cliente, valor_mensalidade, escola_destino, endereco_escola, motorista_perua): (u32, String, Option<String>, String, String, Decimal, String, String, String)| {
+                Cliente {
+                    id,
+                    nome_cliente,
+                    telefone_cliente,
+                    nome_crianca,
+                    endereco_cliente,
+                    valor_mensalidade,
+                    escola_destino,
+                    endereco_escola,
+                    motorista_perua,
+                }
+            },
+        )?
+    } else {
+        // Caso não haja termo de pesquisa, lista todos os clientes
+        conn.query_map(
+            "SELECT id, nome_cliente, telefone_cliente, nome_crianca, endereco_cliente, valor_mensalidade, escola_destino, endereco_escola, motorista_perua FROM clientes ORDER BY nome_cliente ASC",
+            |(id, nome_cliente, telefone_cliente, nome_crianca, endereco_cliente, valor_mensalidade, escola_destino, endereco_escola, motorista_perua): (u32, String, Option<String>, String, String, Decimal, String, String, String)| {
+                Cliente {
+                    id,
+                    nome_cliente,
+                    telefone_cliente,
+                    nome_crianca,
+                    endereco_cliente,
+                    valor_mensalidade,
+                    escola_destino,
+                    endereco_escola,
+                    motorista_perua,
+                }
+            },
+        )?
+    };
     Ok(clientes)
 }
 

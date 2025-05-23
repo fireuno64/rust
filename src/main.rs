@@ -3,6 +3,7 @@ use actix_session::{SessionMiddleware, Session, storage::CookieSessionStore};
 use actix_web::cookie::Key;
 use tera::{Tera, Context};
 use mysql::Pool;
+use serde::Deserialize;
 
 use rust_decimal::Decimal;
 
@@ -12,20 +13,26 @@ use auth::{LoginForm, autenticar_usuario};
 mod clientes;
 use clientes::{listar_clientes, adicionar_cliente, buscar_cliente_por_id, atualizar_cliente, remover_cliente};
 
-mod auth_error; // Mantido, pois é usado pelo middleware
+mod auth_error;
 
 mod middleware;
 use middleware::{AuthAdmin, AuthMiddleware};
 
-mod models; // Importe o módulo de modelos
-use models::{FormCliente}; // Removido Cliente e Usuario, pois não são usados diretamente aqui
+mod models;
+use models::{FormCliente, Cliente};
 
-use actix_files as fs;
+use actix_files as fs; // <-- ADICIONE ESTA LINHA NOVAMENTE!
 
 #[derive(serde::Serialize)]
 struct UserTemplate {
     username: String,
     is_admin: bool,
+}
+
+// Struct para pegar o parâmetro de pesquisa da URL
+#[derive(Debug, Deserialize)]
+pub struct SearchParams {
+    search: Option<String>,
 }
 
 // *******************************************************************
@@ -134,6 +141,7 @@ async fn home(
     tmpl: web::Data<Tera>,
     pool: web::Data<Pool>,
     session: Session, // Session ainda é útil para obter dados do usuário logado
+    query: web::Query<SearchParams>, // <--- Adicionado para pegar o parâmetro 'search'
 ) -> Result<HttpResponse> {
     // Esses unwrap são seguros devido ao AuthMiddleware
     let username = session.get::<String>("user")?.unwrap();
@@ -145,9 +153,13 @@ async fn home(
         is_admin,
     });
 
-    let clientes = listar_clientes(&pool).unwrap_or_default();
+    let search_term = query.search.clone().filter(|s| !s.trim().is_empty()); // Pega o termo de pesquisa e remove espaços em branco
+
+    let clientes: Vec<Cliente> = listar_clientes(&pool, search_term.clone()) // <--- Passa o termo de pesquisa
+        .unwrap_or_default();
     ctx.insert("has_clientes", &!clientes.is_empty());
     ctx.insert("clientes", &clientes);
+    ctx.insert("search_query", &search_term); // <--- Passa o termo de pesquisa para o template
 
     let s = tmpl.render("index.html", &ctx)
         .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
