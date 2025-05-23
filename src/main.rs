@@ -1,18 +1,24 @@
 use actix_web::{web, App, HttpServer, HttpResponse, Responder, Result};
 use actix_session::{SessionMiddleware, Session, storage::CookieSessionStore};
 use actix_web::cookie::Key;
-use tera::{Tera, Context}; // CORRIGIDO: Removido global_function da importação
+use tera::{Tera, Context};
 use mysql::Pool;
 
-// Novas importações para a formatação de moeda
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec; // Aviso de unused import vai persistir se não usar a macro, mas é inofensivo.
 
 mod auth;
 use auth::{LoginForm, autenticar_usuario};
 
 mod clientes;
-use clientes::{listar_clientes, FormCliente, Cliente, adicionar_cliente, buscar_cliente_por_id, atualizar_cliente, remover_cliente};
+use clientes::{listar_clientes, adicionar_cliente, buscar_cliente_por_id, atualizar_cliente, remover_cliente};
+
+mod auth_error; // Mantido, pois é usado pelo middleware
+
+mod middleware;
+use middleware::{AuthAdmin, AuthMiddleware};
+
+mod models; // Importe o módulo de modelos
+use models::{FormCliente}; // Removido Cliente e Usuario, pois não são usados diretamente aqui
 
 use actix_files as fs;
 
@@ -23,33 +29,26 @@ struct UserTemplate {
 }
 
 // *******************************************************************
-// ADICIONE ESTA FUNÇÃO DE FILTRO PERSONALIZADA PARA O TERA
+// FUNÇÃO DE FILTRO PERSONALIZADA PARA O TERA (mantida inalterada)
 // *******************************************************************
 fn format_currency_filter(value: &tera::Value, _: &std::collections::HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
     let decimal_num = match value {
         tera::Value::Number(n) => {
-            // Tenta converter de número para string e depois para Decimal
             let s = n.to_string();
             s.parse::<Decimal>()
                 .map_err(|e| tera::Error::msg(format!("Failed to parse Decimal from number value: {}", e)))?
         },
         tera::Value::String(s) => {
-            // Tenta parsear diretamente se já for uma string
             s.parse::<Decimal>()
                 .map_err(|e| tera::Error::msg(format!("Failed to parse Decimal from string: {}", e)))?
         },
         _ => return Err(tera::Error::msg(format!("Filter `format_currency` only works on numbers or string representations of numbers, got {:?}", value))),
     };
 
-    // Formatação para R$ XX.XXX,XX
-    // A crate rust_decimal já lida com a precisão de casas decimais.
-    // Vamos substituir o ponto por vírgula para o separador decimal.
     let formatted_value = format!("R$ {}", decimal_num.to_string().replace(".", ","));
     
-    // Para adicionar o separador de milhar, precisaremos de um pouco mais de lógica
-    // Ex: R$ 1.234,56
     let parts: Vec<&str> = formatted_value.split(',').collect();
-    let integer_part = parts[0].replace("R$ ", ""); // Remove "R$ " temporariamente
+    let integer_part = parts[0].replace("R$ ", "");
     let mut formatted_integer_part_rev = String::new();
     let mut count = 0;
     for c in integer_part.chars().rev() {
@@ -65,7 +64,7 @@ fn format_currency_filter(value: &tera::Value, _: &std::collections::HashMap<Str
     let final_formatted_value = if parts.len() > 1 {
         format!("R$ {},{}", final_integer_part, parts[1])
     } else {
-        format!("R$ {}", final_integer_part) // Caso não haja parte decimal (improvável para moeda, mas seguro)
+        format!("R$ {}", final_integer_part)
     };
     
     Ok(tera::to_value(final_formatted_value).unwrap())
@@ -90,8 +89,6 @@ async fn login(
     tmpl: web::Data<Tera>,
 ) -> Result<HttpResponse> {
     println!("Tentativa de login: username={}", form.username);
-    // Não imprima a senha real em logs em produção!
-    println!("Senha recebida (len={})", form.password.len()); 
 
     let mut conn = pool.get_conn().map_err(|e| {
         eprintln!("Erro conexão DB: {:?}", e);
@@ -132,75 +129,62 @@ async fn logout(session: Session) -> impl Responder {
     HttpResponse::Found().append_header(("Location", "/login")).finish()
 }
 
+// *Handlers* de rota após a aplicação do middleware
 async fn home(
     tmpl: web::Data<Tera>,
     pool: web::Data<Pool>,
-    session: Session,
+    session: Session, // Session ainda é útil para obter dados do usuário logado
 ) -> Result<HttpResponse> {
-    // Verifica se usuário está logado
-    if let Ok(Some(username)) = session.get::<String>("user") {
-        let mut ctx = Context::new();
-        ctx.insert("current_user", &UserTemplate {
-            username,
-            is_admin: session.get::<bool>("is_admin").unwrap_or(Some(false)).unwrap_or(false),
-        });
+    // Esses unwrap são seguros devido ao AuthMiddleware
+    let username = session.get::<String>("user")?.unwrap();
+    let is_admin = session.get::<bool>("is_admin")?.unwrap_or(false);
 
-        let clientes = listar_clientes(&pool).unwrap_or_default();
-        ctx.insert("has_clientes", &!clientes.is_empty());
-        ctx.insert("clientes", &clientes);
+    let mut ctx = Context::new();
+    ctx.insert("current_user", &UserTemplate {
+        username,
+        is_admin,
+    });
 
-        let s = tmpl.render("index.html", &ctx)
-            .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
+    let clientes = listar_clientes(&pool).unwrap_or_default();
+    ctx.insert("has_clientes", &!clientes.is_empty());
+    ctx.insert("clientes", &clientes);
 
-        Ok(HttpResponse::Ok().content_type("text/html").body(s))
-    } else {
-        // Não logado: redireciona para /login
-        Ok(HttpResponse::Found()
-            .append_header(("Location", "/login"))
-            .finish())
-    }
+    let s = tmpl.render("index.html", &ctx)
+        .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
+
+    Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
 async fn form_adicionar(
     tmpl: web::Data<Tera>,
-    session: Session
+    session: Session, // Session ainda é útil para obter dados do usuário logado
 ) -> Result<HttpResponse> {
-    if let Ok(Some(username)) = session.get::<String>("user") {
-        let mut ctx = Context::new();
-        ctx.insert("current_user", &UserTemplate {
-            username,
-            is_admin: session.get::<bool>("is_admin").unwrap_or(Some(false)).unwrap_or(false),
-        });
+    // Esses unwrap são seguros devido ao AuthAdmin middleware
+    let username = session.get::<String>("user")?.unwrap();
+    let is_admin = session.get::<bool>("is_admin")?.unwrap_or(false);
+
+    let mut ctx = Context::new();
+    ctx.insert("current_user", &UserTemplate {
+        username,
+        is_admin,
+    });
         
-        let s = tmpl.render("adicionar.html", &ctx)
-            .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
-        Ok(HttpResponse::Ok().content_type("text/html").body(s))
-    } else {
-        // Não logado: redireciona para /login
-        Ok(HttpResponse::Found()
-            .append_header(("Location", "/login"))
-            .finish())
-    }
+    let s = tmpl.render("adicionar.html", &ctx)
+        .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
+    Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
 async fn post_adicionar(
     pool: web::Data<Pool>,
     form: web::Form<FormCliente>,
-    session: Session
 ) -> Result<HttpResponse> {
-    if let Ok(Some(_username)) = session.get::<String>("user") {
-        match adicionar_cliente(&pool, &form) {
-            Ok(_) => Ok(HttpResponse::Found().append_header(("Location", "/")).finish()),
-            Err(e) => {
-                eprintln!("Erro ao adicionar cliente: {:?}", e);
-                Err(actix_web::error::ErrorInternalServerError("Erro ao adicionar cliente"))
-            }
+    // A verificação de admin já foi feita pelo middleware
+    match adicionar_cliente(&pool, &form) {
+        Ok(_) => Ok(HttpResponse::Found().append_header(("Location", "/")).finish()),
+        Err(e) => {
+            eprintln!("Erro ao adicionar cliente: {:?}", e);
+            Err(actix_web::error::ErrorInternalServerError("Erro ao adicionar cliente"))
         }
-    } else {
-        // Não logado: redireciona para /login
-        Ok(HttpResponse::Found()
-            .append_header(("Location", "/login"))
-            .finish())
     }
 }
 
@@ -208,32 +192,29 @@ async fn form_editar(
     tmpl: web::Data<Tera>,
     pool: web::Data<Pool>,
     path: web::Path<u32>,
-    session: Session
+    session: Session, // Session ainda é útil para obter dados do usuário logado
 ) -> Result<HttpResponse> {
-    if let Ok(Some(username)) = session.get::<String>("user") {
-        let id = path.into_inner();
+    // Esses unwrap são seguros devido ao AuthAdmin middleware
+    let username = session.get::<String>("user")?.unwrap();
+    let is_admin = session.get::<bool>("is_admin")?.unwrap_or(false);
 
-        match buscar_cliente_por_id(&pool, id) {
-            Ok(Some(cliente)) => {
-                let mut ctx = Context::new();
-                ctx.insert("cliente", &cliente);
-                ctx.insert("current_user", &UserTemplate {
-                    username,
-                    is_admin: session.get::<bool>("is_admin").unwrap_or(Some(false)).unwrap_or(false),
-                });
+    let id = path.into_inner();
 
-                let s = tmpl.render("editar.html", &ctx)
-                    .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
-                Ok(HttpResponse::Ok().content_type("text/html").body(s))
-            },
-            Ok(None) => Ok(HttpResponse::NotFound().body("Cliente não encontrado")),
-            Err(_) => Err(actix_web::error::ErrorInternalServerError("Erro ao buscar cliente")),
-        }
-    } else {
-        // Não logado: redireciona para /login
-        Ok(HttpResponse::Found()
-            .append_header(("Location", "/login"))
-            .finish())
+    match buscar_cliente_por_id(&pool, id) {
+        Ok(Some(cliente)) => {
+            let mut ctx = Context::new();
+            ctx.insert("cliente", &cliente);
+            ctx.insert("current_user", &UserTemplate {
+                username,
+                is_admin,
+            });
+
+            let s = tmpl.render("editar.html", &ctx)
+                .map_err(|_| actix_web::error::ErrorInternalServerError("Template error"))?;
+            Ok(HttpResponse::Ok().content_type("text/html").body(s))
+        },
+        Ok(None) => Ok(HttpResponse::NotFound().body("Cliente não encontrado")),
+        Err(_) => Err(actix_web::error::ErrorInternalServerError("Erro ao buscar cliente")),
     }
 }
 
@@ -241,53 +222,49 @@ async fn post_editar(
     pool: web::Data<Pool>,
     path: web::Path<u32>,
     form: web::Form<FormCliente>,
-    session: Session
 ) -> Result<HttpResponse> {
-    if let Ok(Some(_username)) = session.get::<String>("user") {
-        let id = path.into_inner();
+    // A verificação de admin já foi feita pelo middleware
+    let id = path.into_inner();
 
-        match atualizar_cliente(&pool, id, &form) {
-            Ok(_) => Ok(HttpResponse::Found().append_header(("Location", "/")).finish()),
-            Err(_) => Err(actix_web::error::ErrorInternalServerError("Erro ao atualizar cliente")),
-        }
-    } else {
-        // Não logado: redireciona para /login
-        Ok(HttpResponse::Found()
-            .append_header(("Location", "/login"))
-            .finish())
+    match atualizar_cliente(&pool, id, &form) {
+        Ok(_) => Ok(HttpResponse::Found().append_header(("Location", "/")).finish()),
+        Err(_) => Err(actix_web::error::ErrorInternalServerError("Erro ao atualizar cliente")),
     }
 }
 
 async fn post_remover(
     pool: web::Data<Pool>,
     path: web::Path<u32>,
-    session: Session
 ) -> Result<HttpResponse> {
-    if let Ok(Some(_username)) = session.get::<String>("user") {
-        let id = path.into_inner();
+    // A verificação de admin já foi feita pelo middleware
+    let id = path.into_inner();
 
-        match remover_cliente(&pool, id) {
-            Ok(_) => Ok(HttpResponse::Found().append_header(("Location", "/")).finish()),
-            Err(_) => Err(actix_web::error::ErrorInternalServerError("Erro ao remover cliente")),
-        }
-    } else {
-        // Não logado: redireciona para /login
-        Ok(HttpResponse::Found()
-            .append_header(("Location", "/login"))
-            .finish())
+    match remover_cliente(&pool, id) {
+        Ok(_) => Ok(HttpResponse::Found().append_header(("Location", "/")).finish()),
+        Err(_) => Err(actix_web::error::ErrorInternalServerError("Erro ao remover cliente")),
     }
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Inicia o logger
+    env_logger::init();
+    
+    // ATENÇÃO: Use dotenv para carregar as variáveis de ambiente em produção!
+    // Para homologação, você pode ter um .env
+    // dotenv::dotenv().ok(); // Carrega variáveis do arquivo .env
+
+    // let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    // let session_secret_key = std::env::var("SESSION_SECRET_KEY").expect("SESSION_SECRET_KEY must be set");
+    
     let pool = Pool::new("mysql://root:Gerudo64*@localhost/perua_escolar").expect("Failed to create pool");
     
     let mut tera = Tera::new("templates/**/*").expect("Failed to parse templates");
-    tera.autoescape_on(vec![".html", ".htm"]); // CORRIGIDO: Agora passa Vec<&str> para autoescape_on
+    tera.autoescape_on(vec![".html", ".htm"]);
     
     tera.register_filter("format_currency", format_currency_filter);
 
-    let secret_key = Key::generate();
+    let secret_key = Key::generate(); // Ou use Key::from(session_secret_key.as_bytes()) se vier de .env
 
     HttpServer::new(move || {
         App::new()
@@ -298,15 +275,25 @@ async fn main() -> std::io::Result<()> {
                 secret_key.clone(),
             ))
             .service(fs::Files::new("/static", "./static"))		
-            .route("/", web::get().to(home))
             .route("/login", web::get().to(login_form))
             .route("/login", web::post().to(login))
             .route("/logout", web::post().to(logout))
-            .route("/adicionar", web::get().to(form_adicionar))
-            .route("/adicionar", web::post().to(post_adicionar))
-            .route("/editar/{id}", web::get().to(form_editar))
-            .route("/editar/{id}", web::post().to(post_editar))
-            .route("/remover/{id}", web::post().to(post_remover))
+            // Rotas que exigem apenas que o usuário esteja logado (HOME)
+            .service(
+                web::scope("/")
+                    .wrap(AuthMiddleware) // Aplica o middleware de autenticação
+                    .route("", web::get().to(home)) // Rota raiz (home)
+            )
+            // Rotas que exigem que o usuário seja administrador
+            .service(
+                web::scope("/admin") // Todas as rotas dentro deste escopo exigirão admin
+                    .wrap(AuthAdmin) // Aplica o middleware de autenticação e admin
+                    .route("/adicionar", web::get().to(form_adicionar))
+                    .route("/adicionar", web::post().to(post_adicionar))
+                    .route("/editar/{id}", web::get().to(form_editar))
+                    .route("/editar/{id}", web::post().to(post_editar))
+                    .route("/remover/{id}", web::post().to(post_remover))
+            )
     })
     .bind(("127.0.0.1", 8080))?
     .run()

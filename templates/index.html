@@ -4,7 +4,9 @@
 {% block page_title %}Lista de Clientes{% endblock %}
 
 {% block content %}
-<a href="/adicionar" class="button">Adicionar Cliente</a>
+{% if current_user.is_admin %} {# Botão Adicionar Cliente visível apenas para admin #}
+<a href="/admin/adicionar" class="button">Adicionar Cliente</a>
+{% endif %}
 {% if has_clientes %}
 <table>
     <thead>
@@ -44,16 +46,22 @@
             <td>{{ cliente.endereco_escola }}</td>
             <td>{{ cliente.motorista_perua }}</td>
             <td class="actions">
-                <a href="/editar/{{ cliente.id }}" style="background-color: #007bff; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; margin-right: 5px;">Editar</a>
-                <form action="/remover/{{ cliente.id }}" method="post" style="display:inline;">
-                    <button type="submit" onclick="return confirm('Tem certeza que deseja remover este cliente?');" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 5px; border: none; cursor: pointer;">Remover</button>
-                </form>
+                {# Ações de Edição/Remoção visíveis apenas para administradores #}
+                {% if current_user.is_admin %}
+                    <a href="/admin/editar/{{ cliente.id }}" style="background-color: #007bff; color: white; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block; margin-right: 5px;">Editar</a>
+                    <form action="/admin/remover/{{ cliente.id }}" method="post" style="display:inline;">
+                        <button type="submit" onclick="return confirm('Tem certeza que deseja remover este cliente?');" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 5px; border: none; cursor: pointer;">Remover</button>
+                    </form>
+                {% else %}
+                    {# Opcional: exibir algo para usuários não-admin, como "Sem permissão" #}
+                    <span>-</span>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 {% else %}
-<p>Nenhum cliente cadastrado.</p>
+<p>Nenhum cliente cadastrado ainda.</p>
 {% endif %}
 {% endblock %}
